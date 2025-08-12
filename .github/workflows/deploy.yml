@@ -1,0 +1,34 @@
+name: Deploy mommy-api-chat (EC2)
+
+on:
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: deploy-mommy-api-chat
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout (not strictly needed)
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_aws
+          chmod 600 ~/.ssh/id_aws
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Run deploy.sh on EC2
+        env:
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+          APP_DIR: ${{ secrets.EC2_PATH }}
+          PM2_NAME: ${{ secrets.PM2_NAME }}
+        run: |
+          ssh -i ~/.ssh/id_aws $USER@$HOST "cd $APP_DIR && PM2_NAME='$PM2_NAME' ./deploy.sh"
