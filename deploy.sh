@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="/var/www/mommy-api-chat"
+APP_DIR="/home/ubuntu/mommy-api-chat"
 REPO_URL="https://github.com/frontclubemoms/mommy-api-chat.git"
 PM2_NAME="mommy-api-chat"
 
