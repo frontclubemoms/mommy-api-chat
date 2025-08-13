@@ -11,7 +11,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    environment: keys
     # If you stored secrets in an Environment (e.g., "keys"), keep this line.
     # If you use Repository secrets, delete the next line.
     # environment: keys
