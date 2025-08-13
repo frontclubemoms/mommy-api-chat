@@ -11,19 +11,41 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: keys
+
+    # If you stored secrets in an Environment (e.g., "keys"), keep this line.
+    # If you use Repository secrets, delete the next line.
+    # environment: keys
+
     timeout-minutes: 20
 
     steps:
-      - name: Checkout (not strictly needed)
+      - name: Checkout (optional)
         uses: actions/checkout@v4
 
-      - name: Setup SSH
+      - name: Setup SSH (multi-line PEM)
+        env:
+          HOST: ${{ secrets.EC2_HOST }}
+          KEY:  ${{ secrets.EC2_KEY }}
         run: |
+          set -euo pipefail
+          test -n "$HOST" || { echo "❌ EC2_HOST is empty"; exit 1; }
+          test -n "$KEY"  || { echo "❌ EC2_KEY is empty"; exit 1; }
+
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_aws
+
+          # Write the PEM exactly as provided, then normalize CRLF if any.
+          # printf preserves content; we strip only carriage returns.
+          printf '%s' "$KEY" | tr -d '\r' > ~/.ssh/id_aws
+
           chmod 600 ~/.ssh/id_aws
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+          # Sanity-check: private key header should be present
+          head -n 1 ~/.ssh/id_aws | grep -Eq 'BEGIN (OPENSSH|RSA) PRIVATE KEY' || {
+            echo "❌ The EC2_KEY does not look like a valid PEM private key"; exit 1;
+          }
+
+          # Add host key to avoid the interactive prompt
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Run deploy.sh on EC2
         env:
@@ -32,4 +54,6 @@ jobs:
           APP_DIR: ${{ secrets.EC2_PATH }}
           PM2_NAME: ${{ secrets.PM2_NAME }}
         run: |
-          ssh -i ~/.ssh/id_aws $USER@$HOST "cd $APP_DIR && PM2_NAME='$PM2_NAME' ./deploy.sh"
+          set -euo pipefail
+          ssh -i ~/.ssh/id_aws -o StrictHostKeyChecking=yes "$USER@$HOST" \
+            "cd '$APP_DIR' && PM2_NAME='$PM2_NAME' ./deploy.sh"
